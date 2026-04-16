@@ -1,148 +1,140 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { login } from "./lib/auth";
-import { fetchTable } from "./lib/data";
-import { scanPatent } from "./lib/scanner";
+import { supabase } from "./lib/supabase";
 
-/* ---------------- LOGIN ---------------- */
+type Item = {
+  id: string;
+  title: string;
+  abstract?: string;
+  url?: string;
+  date?: string;
+};
 
-function LoginScreen({ onLogin }: any) {
-  const [user, setUser] = useState("");
-  const [pass, setPass] = useState("");
-
-  return (
-    <div style={{ padding: 40 }}>
-      <h2>Admin Login</h2>
-
-      <input
-        placeholder="username"
-        value={user}
-        onChange={(e) => setUser(e.target.value)}
-        style={{ display: "block", marginBottom: 10 }}
-      />
-
-      <input
-        placeholder="password"
-        type="password"
-        value={pass}
-        onChange={(e) => setPass(e.target.value)}
-        style={{ display: "block", marginBottom: 10 }}
-      />
-
-      <button
-        onClick={() => {
-          if (login(user, pass)) {
-            onLogin(true);
-          } else {
-            alert("Invalid login");
-          }
-        }}
-      >
-        Login
-      </button>
-    </div>
-  );
-}
-
-/* ---------------- MAIN APP ---------------- */
+type TableType = "patents" | "publications" | "people";
 
 export default function Page() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [tab, setTab] = useState("patents");
-  const [items, setItems] = useState<any[]>([]);
-  const [scanInput, setScanInput] = useState("");
-  const [scanning, setScanning] = useState(false);
+  const [active, setActive] = useState<TableType>("patents");
+  const [data, setData] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [input, setInput] = useState("");
+
+  async function load(table: TableType) {
+    setLoading(true);
+
+    const { data } = await supabase
+      .from(table)
+      .select("*")
+      .order("date", { ascending: false });
+
+    setData(data || []);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    if (!loggedIn) return;
+    load(active);
+  }, [active]);
 
-    fetchTable(tab).then(setItems);
-  }, [tab, loggedIn]);
+  async function scan() {
+    await fetch("/api/scan", {
+      method: "POST",
+      body: JSON.stringify({
+        table: active,
+        url: input,
+      }),
+    });
 
-  if (!loggedIn) {
-    return <LoginScreen onLogin={setLoggedIn} />;
+    setInput("");
+    load(active);
   }
 
   return (
-    <main style={{ padding: 20, fontFamily: "Arial" }}>
-      <h1>Dashboard</h1>
+    <div className="min-h-screen bg-gray-950 text-gray-100">
 
-      {/* NAV */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        <button onClick={() => setTab("patents")}>Patents</button>
-        <button onClick={() => setTab("publications")}>Publications</button>
-        <button onClick={() => setTab("people")}>People</button>
-        <button onClick={() => setLoggedIn(false)}>Logout</button>
+      {/* HEADER */}
+      <div className="border-b border-gray-800 p-4 flex justify-between">
+        <div className="font-semibold">
+          Photonic Intelligence Dashboard
+        </div>
+        <div className="text-gray-400 text-sm">
+          Supabase Connected
+        </div>
       </div>
 
-      {/* SCANNER */}
-      <div style={{ marginBottom: 20 }}>
-        <input
-          placeholder="Scan patent URL or title"
-          value={scanInput}
-          onChange={(e) => setScanInput(e.target.value)}
-          style={{ marginRight: 10 }}
-        />
-
-        <button
-          disabled={scanning}
-          onClick={async () => {
-            if (!scanInput) return;
-
-            setScanning(true);
-
-            try {
-              const result = await scanPatent({
-                title: scanInput,
-                abstract: "Manually scanned entry",
-                date: new Date().toISOString().split("T")[0],
-                url: scanInput,
-              });
-
-              console.log("INSERT RESULT:", result);
-
-              const data = await fetchTable("patents");
-              setItems(data);
-
-              setScanInput("");
-
-              alert("Patent inserted");
-            } catch (e) {
-              console.error(e);
-              alert("Insert failed — check console");
-            } finally {
-              setScanning(false);
-            }
-          }}
-        >
-          {scanning ? "Scanning..." : "Scan Patent"}
-        </button>
+      {/* NAV TABS */}
+      <div className="max-w-5xl mx-auto p-4 flex gap-2">
+        {(["patents", "publications", "people"] as TableType[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setActive(t)}
+            className={`px-3 py-1 rounded-lg text-sm border ${
+              active === t
+                ? "bg-blue-600 border-blue-500"
+                : "border-gray-700 text-gray-400"
+            }`}
+          >
+            {t.toUpperCase()}
+          </button>
+        ))}
       </div>
 
-      {/* TITLE */}
-      <h2>{tab}</h2>
+      {/* INPUT */}
+      <div className="max-w-5xl mx-auto p-4">
+        <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={`Scan into ${active}...`}
+            className="flex-1 bg-transparent outline-none text-sm"
+          />
 
-      {/* DATA */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {items.length === 0 ? (
-          <p>No data found</p>
-        ) : (
-          items.map((item, i) => (
-            <pre
-              key={i}
-              style={{
-                border: "1px solid #ccc",
-                padding: 10,
-                borderRadius: 6,
-                background: "#f9f9f9",
-              }}
-            >
-              {JSON.stringify(item, null, 2)}
-            </pre>
-          ))
+          <button
+            onClick={scan}
+            className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm"
+          >
+            Scan
+          </button>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div className="max-w-5xl mx-auto p-4">
+        {loading && (
+          <div className="text-gray-400 text-sm">Loading...</div>
         )}
+
+        <div className="space-y-3">
+          {data.map((item) => (
+            <div
+              key={item.id}
+              className="bg-gray-900 border border-gray-800 p-4 rounded-xl"
+            >
+              <div className="font-medium">{item.title}</div>
+
+              {item.abstract && (
+                <div className="text-sm text-gray-400 mt-1">
+                  {item.abstract}
+                </div>
+              )}
+
+              <div className="text-xs text-gray-500 mt-2 flex justify-between">
+                <span>{item.date}</span>
+
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
+                    Open →
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    </main>
+
+    </div>
   );
 }

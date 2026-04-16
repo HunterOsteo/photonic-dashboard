@@ -1,24 +1,27 @@
 import { supabase } from "./supabase";
 
-export async function scanPatent(patent: any) {
+export async function scanPatent(input: {
+  title: string;
+  abstract?: string;
+  url: string;
+}) {
   const { data, error } = await supabase
     .from("patents")
     .insert([
       {
-        id: crypto.randomUUID(), // REQUIRED since id is text
-        title: patent.title,
-        abstract: patent.abstract,
-        date: patent.date, // must be YYYY-MM-DD
-        url: patent.url,
-        score: 1,
+        id: crypto.randomUUID(),
+        title: input.title,
+        abstract: input.abstract || "",
+        url: input.url,
+        read: false,
       },
     ])
     .select();
 
   if (error) {
-    console.error("SCAN ERROR FULL:", JSON.stringify(error, null, 2));
+    console.error(error);
     return null;
   }
 
-  return data;
+  return data?.[0];
 }
