@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
+import { scanPatent } from "./lib/scanner";
 
 type Item = {
   id: string;
@@ -36,17 +37,17 @@ export default function Page() {
   }, [active]);
 
   async function scan() {
-    await fetch("/api/scan", {
-      method: "POST",
-      body: JSON.stringify({
-        table: active,
-        url: input,
-      }),
-    });
+  if (!input.trim()) return;
 
-    setInput("");
-    load(active);
-  }
+  await scanPatent({
+    title: input,
+    url: input,
+    abstract: "",
+  });
+
+  setInput("");
+  load(active);
+}
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
