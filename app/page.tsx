@@ -10,6 +10,8 @@ type Item = {
   abstract?: string;
   url?: string;
   date?: string;
+  score?: number;
+  publisher?: string;
 };
 
 type TableType = "patents" | "publications" | "people";
